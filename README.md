@@ -25,6 +25,7 @@ Compile the code.
 
 ### 3. Run the replan mode
 
+    source devel/setup.bash
     roslaunch gcopter global_planning.launch
 
 After conduct the command, you will see the window for rviz. Please follow the gif below for trajectory planning in a random map.
