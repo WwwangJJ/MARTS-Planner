@@ -15,7 +15,7 @@ Install the required packages.
 Download the code.
 
     mkdir transport-multiple; cd transport-multiple; mkdir src; cd src
-    git clone https://github.com/ZJU-FAST-Lab/MARTS-Planner.git
+    git clone https://github.com/WwwangJJ/MARTS-Planner.git
     cd ..
 
 Compile the code.
