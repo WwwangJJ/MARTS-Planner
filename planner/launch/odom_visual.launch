@@ -1,0 +1,19 @@
+<launch>
+    <arg name="drone_id"/>
+    <arg name="odom_topic"/>
+    <arg name="isQuadrotor"/>
+
+    <node pkg="odom_visualization" name="drone_$(arg drone_id)_odom_visualization" type="odom_visualization" output="screen">
+        <remap from="~odom" to="drone_$(arg drone_id)_odom"/>
+        <param name="color/a" value="1.0"/>    
+        <param name="color/r" value="1.0"/>        
+        <param name="color/g" value="0.0"/>        
+        <param name="color/b" value="0.0"/>       
+        <param name="covariance_scale" value="100.0"/>       
+        <param name="robot_scale" value="1.0"/>
+        <param name="tf45" value="false"/>
+        <param name="drone_id" value="$(arg drone_id)"/>
+        <param name="isQuadrotor"   value="$(arg isQuadrotor)"/>
+    </node>
+
+</launch>

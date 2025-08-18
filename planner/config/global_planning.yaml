@@ -1,0 +1,112 @@
+MapTopic:                   '/voxel_map'
+
+TargetTopic:                '/move_base_simple/goal'
+
+DilateRadius:               0.5
+
+VoxelWidth:                 0.2
+
+MapBound:                   [-200.0, 200.0, -200.0, 200.0, 0.0, 5.0]
+
+TimeoutRRT:                 0.02
+
+Percent:                    70.0
+
+MaxVelMagL:                 20.0
+
+MaxAccMagL:                 20.0
+
+MaxVelMagQ:                 15.0
+
+MaxBdrMag:                  2.7
+
+MaxTiltAngle:               1.05
+
+MaxRPM:                     2.2
+
+MinTheta:                   0.0
+
+MaxTheta:                   0.32
+
+MinPsi:                     -0.33333333333333333333
+
+MaxPsi:                     0.33333333333333333333
+
+MinT:                       0.2
+
+MaxT:                       2.5
+
+MinThrust:                  2.0
+
+MaxThrust:                  20.0
+
+MinDistance:                1.2
+
+Clearence:                  0.2
+
+CableLength:                1.2
+
+MassQ:                      0.317
+
+MassL:                      0.150
+
+Offsets:                    [0.0, 0.14]
+
+J:                          [0.000446336280,0.000472599709,0.000534082621]
+
+Cofs:                       [0.4170353998068477, 0.0029678630551771] 
+
+GravAcc:                    9.794
+
+HorizDrag:                  0.70
+
+VertDrag:                   0.80
+
+ParasDrag:                  0.01
+
+SpeedEps:                   0.0001
+
+SmoothingEps:               1.0e-2
+
+IntegralIntervs:            10
+
+RelCostTol:                1.0e-3
+
+DroneNum:                   3
+
+InifinAngT:                 [0.222222222222222222222, 0.0, 1.0]
+
+
+
+PosOffset:                  [-0.2, 0.5, 0.0]      # three circle
+
+# PosOffset:                  [0.0, 0.0, 0.0]      # three circle
+
+InitLoadPos:                [-3.0, 0.0, 0.6]     # three small circle    // 1.0 
+
+EndLoadPos:                [-3.0, 0.0, 0.6]     # three small circle 
+
+# EndLoadPos:                [37.0, 0.0, 0.6]     # three small circle 
+
+WeightT:                    30000.0             # three small circle 
+
+WeightE:                    0.3               #  three small circle 
+
+ChiVec:                     [10000.0, 1000.0, 1000.0]   # collision, rpm, uniformforce small circle 
+
+
+kf:                         8.98132e-9
+
+initHeight:                 0.3
+
+initYaw:                    0.0
+
+takeOffVel:                 0.1
+
+transientTime:              2.0
+
+DisBetweenWaypoints:        3.0
+
+ContinuityDescend:          [0, 0, 0]
+
+BoundaryConditionSlack:      [0, 0, 0]
