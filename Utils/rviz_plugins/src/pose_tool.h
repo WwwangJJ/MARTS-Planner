@@ -34,33 +34,39 @@
 
 #include <QCursor>
 
-#include <ros/ros.h>
+#include <rviz_common/tool.hpp>
 
-#include "rviz/tool.h"
-
-namespace rviz
+namespace rviz_rendering
 {
 class Arrow;
-class DisplayContext;
+}
 
-class Pose3DTool : public Tool
+namespace rviz_common
+{
+class DisplayContext;
+}
+
+namespace rviz_plugins
+{
+
+class Pose3DTool : public rviz_common::Tool
 {
 public:
   Pose3DTool();
   virtual ~Pose3DTool();
 
-  virtual void onInitialize();
+  void onInitialize() override;
 
-  virtual void activate();
-  virtual void deactivate();
+  void activate() override;
+  void deactivate() override;
 
-  virtual int processMouseEvent(ViewportMouseEvent& event);
+  int processMouseEvent(rviz_common::ViewportMouseEvent& event) override;
 
 protected:
   virtual void onPoseSet(double x, double y, double z, double theta) = 0;
 
-  Arrow*              arrow_;
-  std::vector<Arrow*> arrow_array;
+  rviz_rendering::Arrow* arrow_;
+  std::vector<rviz_rendering::Arrow*> arrow_array;
 
   enum State
   {
@@ -72,6 +78,7 @@ protected:
 
   Ogre::Vector3 pos_;
 };
-}
+
+}  // namespace rviz_plugins
 
 #endif

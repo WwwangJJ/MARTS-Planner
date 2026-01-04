@@ -14,6 +14,7 @@
 #include <cfloat>
 #include <iostream>
 #include <vector>
+#include <rclcpp/rclcpp.hpp>
 
 using namespace std;
 namespace gcopter
@@ -207,7 +208,7 @@ namespace gcopter
                 }
                 else
                 {
-                    ROS_WARN("angT overstep the boundary!");
+                    RCLCPP_WARN(rclcpp::get_logger("gcopter"), "angT overstep the boundary!");
                 }
             }
             for (int i = 0; i < droneN; i++)

@@ -1,69 +1,77 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-import rospy
 import numpy as np
-import tf
-from tf import transformations as tfs
-from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
+import rclpy
+from rclpy.node import Node
+from tf_transformations import euler_from_quaternion
+
 from geometry_msgs.msg import Vector3Stamped
-from sensor_msgs.msg import Joy
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Imu, Joy
 
-pub = None
-pub1 = None
 
-def callback(odom_msg):
-    q = np.array([odom_msg.pose.pose.orientation.x,
-                  odom_msg.pose.pose.orientation.y,
-                  odom_msg.pose.pose.orientation.z,
-                  odom_msg.pose.pose.orientation.w])
+class OdomToEuler(Node):
+    def __init__(self):
+        super().__init__("odom_to_euler")
+        self.pub = self.create_publisher(Vector3Stamped, "euler", 10)
+        self.pub1 = self.create_publisher(Vector3Stamped, "imueuler", 10)
+        self.pub2 = self.create_publisher(Vector3Stamped, "ctrlout", 10)
 
-    e = tfs.euler_from_quaternion(q, 'rzyx')
+        self.create_subscription(Odometry, "odom", self.callback, 10)
+        self.create_subscription(Imu, "imu", self.imu_callback, 10)
+        self.create_subscription(Joy, "ctrlin", self.joy_callback, 10)
 
-    euler_msg = Vector3Stamped()
-    euler_msg.header = odom_msg.header
-    euler_msg.vector.z = e[0]*180.0/3.14159
-    euler_msg.vector.y = e[1]*180.0/3.14159
-    euler_msg.vector.x = e[2]*180.0/3.14159
+    def callback(self, odom_msg):
+        q = np.array([odom_msg.pose.pose.orientation.x,
+                      odom_msg.pose.pose.orientation.y,
+                      odom_msg.pose.pose.orientation.z,
+                      odom_msg.pose.pose.orientation.w])
 
-    pub.publish(euler_msg)
+        e = euler_from_quaternion(q, 'rzyx')
 
-def imu_callback(imu_msg):
-    q = np.array([imu_msg.orientation.x,
-                  imu_msg.orientation.y,
-                  imu_msg.orientation.z,
-                  imu_msg.orientation.w])
+        euler_msg = Vector3Stamped()
+        euler_msg.header = odom_msg.header
+        euler_msg.vector.z = e[0] * 180.0 / 3.14159
+        euler_msg.vector.y = e[1] * 180.0 / 3.14159
+        euler_msg.vector.x = e[2] * 180.0 / 3.14159
 
-    e = tfs.euler_from_quaternion(q, 'rzyx')
+        self.pub.publish(euler_msg)
 
-    euler_msg = Vector3Stamped()
-    euler_msg.header = imu_msg.header
-    euler_msg.vector.z = e[0]*180.0/3.14159
-    euler_msg.vector.y = e[1]*180.0/3.14159
-    euler_msg.vector.x = e[2]*180.0/3.14159
+    def imu_callback(self, imu_msg):
+        q = np.array([imu_msg.orientation.x,
+                      imu_msg.orientation.y,
+                      imu_msg.orientation.z,
+                      imu_msg.orientation.w])
 
-    pub1.publish(euler_msg)
+        e = euler_from_quaternion(q, 'rzyx')
 
-def joy_callback(joy_msg):
-    out_msg = Vector3Stamped()
-    out_msg.header = joy_msg.header
-    out_msg.vector.z = -joy_msg.axes[3]
-    out_msg.vector.y = joy_msg.axes[1]
-    out_msg.vector.x = joy_msg.axes[0]
+        euler_msg = Vector3Stamped()
+        euler_msg.header = imu_msg.header
+        euler_msg.vector.z = e[0] * 180.0 / 3.14159
+        euler_msg.vector.y = e[1] * 180.0 / 3.14159
+        euler_msg.vector.x = e[2] * 180.0 / 3.14159
 
-    pub2.publish(out_msg)
+        self.pub1.publish(euler_msg)
+
+    def joy_callback(self, joy_msg):
+        out_msg = Vector3Stamped()
+        out_msg.header = joy_msg.header
+        out_msg.vector.z = -joy_msg.axes[3]
+        out_msg.vector.y = joy_msg.axes[1]
+        out_msg.vector.x = joy_msg.axes[0]
+
+        self.pub2.publish(out_msg)
+
+
+def main():
+    rclpy.init()
+    node = OdomToEuler()
+    try:
+        rclpy.spin(node)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
-    rospy.init_node("odom_to_euler")
-
-    pub = rospy.Publisher("~euler", Vector3Stamped, queue_size=10)
-    sub = rospy.Subscriber("~odom", Odometry, callback)
-
-    pub1 = rospy.Publisher("~imueuler", Vector3Stamped, queue_size=10)
-    sub1 = rospy.Subscriber("~imu", Imu, imu_callback)
-
-    pub2 = rospy.Publisher("~ctrlout", Vector3Stamped, queue_size=10)
-    sub2 = rospy.Subscriber("~ctrlin", Joy, joy_callback)
-
-    rospy.spin()
+    main()

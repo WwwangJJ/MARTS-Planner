@@ -40,80 +40,45 @@
 #-rosbuild_add_link_flags(decode_msgs -Wl,--as-needed)
 
 #------------------------------------------------------------------
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(quadrotor_msgs)
 
-find_package(catkin REQUIRED COMPONENTS
-  #armadillo
-  roscpp
-  nav_msgs
-  geometry_msgs
-  message_generation
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+
+set(msg_files
+  "msg/AuxCommand.msg"
+  "msg/Corrections.msg"
+  "msg/Gains.msg"
+  "msg/Rpms.msg"
+  "msg/OutputData.msg"
+  "msg/PositionCommand.msg"
+  "msg/PolyTraj.msg"
+  "msg/PositionCommandNew.msg"
+  "msg/PositionCommandLoad.msg"
+  "msg/PPROutputData.msg"
+  "msg/SimState.msg"
+  "msg/IndiState.msg"
+  "msg/Serial.msg"
+  "msg/SO3Command.msg"
+  "msg/StatusData.msg"
+  "msg/TRPYCommand.msg"
+  "msg/Odometry.msg"
+  "msg/PolynomialTrajectory.msg"
+  "msg/LQRTrajectory.msg"
+  "msg/geDebug.msg"
+  "msg/Px4ctrlDebug.msg"
+  "msg/TakeoffLand.msg"
+  "msg/trigger.msg"
 )
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
-
-include_directories(
-    ${catkin_INCLUDE_DIRS}
-    include
-    )
-
-
-add_message_files(
-  FILES
-  AuxCommand.msg
-  Corrections.msg
-  Gains.msg
-  Rpms.msg
-  OutputData.msg
-  PositionCommand.msg
-  PolyTraj.msg
-  PositionCommandNew.msg
-  PositionCommandLoad.msg
-  PPROutputData.msg
-  SimState.msg
-  IndiState.msg
-  Serial.msg
-  SO3Command.msg
-  StatusData.msg
-  TRPYCommand.msg
-  Odometry.msg
-  PolynomialTrajectory.msg
-  LQRTrajectory.msg
-  geDebug.msg
-  Px4ctrlDebug.msg
-  TakeoffLand.msg
-  trigger.msg
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  DEPENDENCIES geometry_msgs nav_msgs
 )
 
-generate_messages(
-    DEPENDENCIES
-    geometry_msgs
-    nav_msgs
-)
+ament_export_dependencies(rosidl_default_runtime)
 
-catkin_package(
-  #INCLUDE_DIRS include
-  # LIBRARIES encode_msgs decode_msgs
-  #CATKIN_DEPENDS geometry_msgs nav_msgs
-  #DEPENDS system_lib
-  CATKIN_DEPENDS message_runtime
-)
-
-# add_executable(test_exe src/test_exe.cpp)
-# add_library(decode_msgs src/decode_msgs.cpp)
-# add_library(encode_msgs src/encode_msgs.cpp)
-
-# add_dependencies(test_exe quadrotor_msgs_generate_messages_cpp)
-# add_dependencies(encode_msgs quadrotor_msgs_generate_messages_cpp)
-# add_dependencies(decode_msgs quadrotor_msgs_generate_messages_cpp)
-
-find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIR})
-
-
-# target_link_libraries(test_exe 
-#     decode_msgs 
-#     encode_msgs
-# )
-
+ament_package()

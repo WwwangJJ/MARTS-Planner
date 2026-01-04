@@ -3,39 +3,39 @@
 // #define current_img_ md_.depth_image_[image_cnt_ & 1]
 // #define last_img_ md_.depth_image_[!(image_cnt_ & 1)]
 
-void GridMap::initMap()
+void GridMap::initMap(const rclcpp::Node::SharedPtr &node)
 {
-  node_ = ros::NodeHandle("~");
+  node_ = node;
 
   /* get parameter */
   double x_size, y_size, z_size;
-  node_.param("grid_map/resolution", mp_.resolution_, -1.0);
+  mp_.resolution_ = node_->declare_parameter<double>("grid_map/resolution", -1.0);
   cout <<"resolution\t" << mp_.resolution_ << endl;
-  node_.param("grid_map/map_size_x", x_size, -1.0);
-  node_.param("grid_map/map_size_y", y_size, -1.0);
-  node_.param("grid_map/map_size_z", z_size, -1.0);
-  node_.param("grid_map/local_update_range_x", mp_.local_update_range_(0), -1.0);
-  node_.param("grid_map/local_update_range_y", mp_.local_update_range_(1), -1.0);
-  node_.param("grid_map/local_update_range_z", mp_.local_update_range_(2), -1.0);
-  node_.param("grid_map/obstacles_inflation", mp_.obstacles_inflation_, -1.0);
+  x_size = node_->declare_parameter<double>("grid_map/map_size_x", -1.0);
+  y_size = node_->declare_parameter<double>("grid_map/map_size_y", -1.0);
+  z_size = node_->declare_parameter<double>("grid_map/map_size_z", -1.0);
+  mp_.local_update_range_(0) = node_->declare_parameter<double>("grid_map/local_update_range_x", -1.0);
+  mp_.local_update_range_(1) = node_->declare_parameter<double>("grid_map/local_update_range_y", -1.0);
+  mp_.local_update_range_(2) = node_->declare_parameter<double>("grid_map/local_update_range_z", -1.0);
+  mp_.obstacles_inflation_ = node_->declare_parameter<double>("grid_map/obstacles_inflation", -1.0);
 
-  node_.param("grid_map/p_min", mp_.p_min_, 0.12);
-  node_.param("grid_map/p_max", mp_.p_max_, 0.97);
-  node_.param("grid_map/p_occ", mp_.p_occ_, 0.80);
+  mp_.p_min_ = node_->declare_parameter<double>("grid_map/p_min", 0.12);
+  mp_.p_max_ = node_->declare_parameter<double>("grid_map/p_max", 0.97);
+  mp_.p_occ_ = node_->declare_parameter<double>("grid_map/p_occ", 0.80);
 
-  node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
-  node_.param("grid_map/virtual_ceil_height", mp_.virtual_ceil_height_, -0.1);
-  node_.param("grid_map/pose_type", mp_.pose_type_, 1);
+  mp_.visualization_truncate_height_ = node_->declare_parameter<double>("grid_map/visualization_truncate_height", -0.1);
+  mp_.virtual_ceil_height_ = node_->declare_parameter<double>("grid_map/virtual_ceil_height", -0.1);
+  mp_.pose_type_ = node_->declare_parameter<int>("grid_map/pose_type", 1);
 
-  node_.param("grid_map/frame_id", mp_.frame_id_, string("world"));
+  mp_.frame_id_ = node_->declare_parameter<std::string>("grid_map/frame_id", string("world"));
   cout << "frame_id_\t" << mp_.frame_id_ << endl;
-  node_.param("grid_map/local_map_margin", mp_.local_map_margin_, 1);
-  node_.param("grid_map/ground_height", mp_.ground_height_, 0.0);
+  mp_.local_map_margin_ = node_->declare_parameter<int>("grid_map/local_map_margin", 1);
+  mp_.ground_height_ = node_->declare_parameter<double>("grid_map/ground_height", 0.0);
 
   // add esdf
-  node_.param("grid_map/esdf_slice_height", mp_.esdf_slice_height_, -0.1);
-  node_.param("grid_map/show_esdf_time", mp_.show_esdf_time_, false);
-  node_.param("grid_map/local_bound_inflate", mp_.local_bound_inflate_, 1.0);
+  mp_.esdf_slice_height_ = node_->declare_parameter<double>("grid_map/esdf_slice_height", -0.1);
+  mp_.show_esdf_time_ = node_->declare_parameter<bool>("grid_map/show_esdf_time", false);
+  mp_.local_bound_inflate_ = node_->declare_parameter<double>("grid_map/local_bound_inflate", 1.0);
 
   mp_.local_bound_inflate_ = max(mp_.resolution_, mp_.local_bound_inflate_);
   mp_.resolution_inv_ = 1 / mp_.resolution_;
@@ -79,12 +79,13 @@ void GridMap::initMap()
 
   // use odometry and point cloud
   setOdom();
-  indep_cloud_sub_ = node_.subscribe<sensor_msgs::PointCloud2>("grid_map/cloud", 10, &GridMap::cloudCallback, this);
-  vis_timer_  = node_.createTimer(ros::Duration(0.05), &GridMap::visCallback, this);
-  
-  map_pub_      = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10);
-  map_inf_pub_  = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10);
-  esdf_pub_     = node_.advertise<sensor_msgs::PointCloud2>("grid_map/esdf", 10);
+  indep_cloud_sub_ = node_->create_subscription<sensor_msgs::msg::PointCloud2>(
+      "grid_map/cloud", 10, std::bind(&GridMap::cloudCallback, this, std::placeholders::_1));
+  vis_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50), std::bind(&GridMap::visCallback, this));
+
+  map_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("grid_map/occupancy", 10);
+  map_inf_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("grid_map/occupancy_inflate", 10);
+  esdf_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("grid_map/esdf", 10);
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -126,7 +127,7 @@ void GridMap::resetBuffer(Eigen::Vector3d min_pos, Eigen::Vector3d max_pos)
       }
 }
 
-void GridMap::visCallback(const ros::TimerEvent & /*event*/)
+void GridMap::visCallback()
 {
   publishMapInflate(true);
   publishMap();
@@ -138,19 +139,20 @@ void GridMap::updateESDFCallback()
   if (!md_.esdf_need_update_) return;
 
   /* esdf */
-  ros::Time t1, t2;
-  t1 = ros::Time::now();
+  rclcpp::Time t1, t2;
+  t1 = node_->now();
 
   updateESDF3d();
 
-  t2 = ros::Time::now();
+  t2 = node_->now();
 
-  md_.esdf_time_ += (t2 - t1).toSec();
-  md_.max_esdf_time_ = max(md_.max_esdf_time_, (t2 - t1).toSec());
+  md_.esdf_time_ += (t2 - t1).seconds();
+  md_.max_esdf_time_ = max(md_.max_esdf_time_, (t2 - t1).seconds());
 
   if (mp_.show_esdf_time_)
-    ROS_WARN("ESDF: cur t = %lf, avg t = %lf, max t = %lf", (t2 - t1).toSec(),
-             md_.esdf_time_ / md_.update_num_, md_.max_esdf_time_);
+    RCLCPP_WARN(node_->get_logger(),
+                "ESDF: cur t = %lf, avg t = %lf, max t = %lf", (t2 - t1).seconds(),
+                md_.esdf_time_ / md_.update_num_, md_.max_esdf_time_);
 
   md_.esdf_need_update_ = false;
 }
@@ -163,7 +165,7 @@ void GridMap::setOdom()
   md_.has_odom_ = true;
 }
 
-void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
+void GridMap::cloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr img)
 {
   // if (mp_.has_receive_cloud)
   // {
@@ -290,7 +292,7 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
 void GridMap::publishMap()
 {
   // cout << "CCC" << endl;
-  if (map_pub_.getNumSubscribers() <= 0)
+  if (map_pub_->get_subscription_count() == 0)
     return;
   pcl::PointXYZ pt;
   pcl::PointCloud<pcl::PointXYZ> cloud;
@@ -327,16 +329,16 @@ void GridMap::publishMap()
   cloud.height = 1;
   cloud.is_dense = true;
   cloud.header.frame_id = mp_.frame_id_;
-  sensor_msgs::PointCloud2 cloud_msg;
+  sensor_msgs::msg::PointCloud2 cloud_msg;
 
   pcl::toROSMsg(cloud, cloud_msg);
-  map_pub_.publish(cloud_msg);
+  map_pub_->publish(cloud_msg);
 }
 
 void GridMap::publishMapInflate(bool all_info)
 {
 
-  if (map_inf_pub_.getNumSubscribers() <= 0)
+  if (map_inf_pub_->get_subscription_count() == 0)
     return;
 
   pcl::PointXYZ pt;
@@ -377,10 +379,10 @@ void GridMap::publishMapInflate(bool all_info)
   cloud.height = 1;
   cloud.is_dense = true;
   cloud.header.frame_id = mp_.frame_id_;
-  sensor_msgs::PointCloud2 cloud_msg;
+  sensor_msgs::msg::PointCloud2 cloud_msg;
 
   pcl::toROSMsg(cloud, cloud_msg);
-  map_inf_pub_.publish(cloud_msg);
+  map_inf_pub_->publish(cloud_msg);
 
   // ROS_INFO("pub map");
 }
@@ -484,7 +486,7 @@ void GridMap::updateESDF3d (){
         } else if (md_.occupancy_buffer_inflate_[idx] == 1) {
           md_.occupancy_buffer_neg_[idx] = 0;
         } else {
-          ROS_ERROR("what?");
+          RCLCPP_ERROR(node_->get_logger(), "what?");
         }
       }
 
@@ -579,10 +581,10 @@ void GridMap::publishESDF(){
   cloud.height = 1;
   cloud.is_dense = true;
   cloud.header.frame_id = mp_.frame_id_;
-  sensor_msgs::PointCloud2 cloud_msg;
+  sensor_msgs::msg::PointCloud2 cloud_msg;
   pcl::toROSMsg(cloud, cloud_msg);
 
-  esdf_pub_.publish(cloud_msg);
+  esdf_pub_->publish(cloud_msg);
 }
 
 /* use for ESDF API*/

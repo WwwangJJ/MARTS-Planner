@@ -7,15 +7,16 @@
 #include "gcopter/display.hpp"
 #include "gcopter/maneuver.hpp"
 #include "plan_env/grid_map.h"
-#include "quadrotor_msgs/PolyTraj.h"
+#include "quadrotor_msgs/msg/poly_traj.hpp"
 
-#include <ros/ros.h>
-#include <ros/console.h>
-#include <geometry_msgs/Point.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <sensor_msgs/PointCloud2.h>
+#include <rclcpp/rclcpp.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -79,56 +80,56 @@ struct Config
     std::vector<double> continuityDescend;
     std::vector<double> boundaryConditionSlack;
 
-    Config(const ros::NodeHandle &nh_priv)
+    Config(const rclcpp::Node::SharedPtr &node)
     {
-        nh_priv.getParam("MapTopic", mapTopic);
-        nh_priv.getParam("TargetTopic", targetTopic);
-        nh_priv.getParam("DilateRadius", dilateRadius);
-        nh_priv.getParam("VoxelWidth", voxelWidth);
-        nh_priv.getParam("MapBound", mapBound);
-        nh_priv.getParam("TimeoutRRT", timeoutRRT);
-        nh_priv.getParam("Percent", percent);
-        nh_priv.getParam("MaxVelMagL", maxVelMagL);
-        nh_priv.getParam("MaxVelMagQ", maxVelMagQ);
-        nh_priv.getParam("MaxAccMagL", maxAccMagL);
-        nh_priv.getParam("MaxBdrMag", maxBdrMag);
-        nh_priv.getParam("MaxTiltAngle", maxTiltAngle);
-        nh_priv.getParam("MaxRPM", maxRPM);
-        nh_priv.getParam("MinTheta", minTheta);
-        nh_priv.getParam("MaxTheta", maxTheta);
-        nh_priv.getParam("MinPsi", minPsi);
-        nh_priv.getParam("MaxPsi", maxPsi);
-        nh_priv.getParam("MinT", minT);
-        nh_priv.getParam("MaxT", maxT);
-        nh_priv.getParam("MinThrust", minThrust);
-        nh_priv.getParam("MaxThrust", maxThrust);
-        nh_priv.getParam("MinDistance", minDistance);
-        nh_priv.getParam("CableLength", cableLength);
-        nh_priv.getParam("MassL", massL);
-        nh_priv.getParam("MassQ", massQ);
-        nh_priv.getParam("J", rotationalInertia);
-        nh_priv.getParam("Offsets", offsets);
-        nh_priv.getParam("Cofs", cofs);
-        nh_priv.getParam("GravAcc", gravAcc);
-        nh_priv.getParam("HorizDrag", horizDrag);
-        nh_priv.getParam("VertDrag", vertDrag);
-        nh_priv.getParam("ParasDrag", parasDrag);
-        nh_priv.getParam("SpeedEps", speedEps);
-        nh_priv.getParam("WeightT", weightT);
-        nh_priv.getParam("WeightE", weightE);
-        nh_priv.getParam("ChiVec", chiVec);
-        nh_priv.getParam("SmoothingEps", smoothingEps);
-        nh_priv.getParam("IntegralIntervs", integralIntervs);
-        nh_priv.getParam("RelCostTol", relCostTol);
-        nh_priv.getParam("PieceNum", pieceNum);
-        nh_priv.getParam("DroneNum", droneNum);
-        nh_priv.getParam("InifinAngT", inifinAngT);
-        nh_priv.getParam("InitLoadPos", initLoadPos);
-        nh_priv.getParam("EndLoadPos", endLoadPos);
-        nh_priv.getParam("PosOffset", posOffset);
-        nh_priv.getParam("DisBetweenWaypoints", disBetweenWaypoints);
-        nh_priv.getParam("ContinuityDescend", continuityDescend);
-        nh_priv.getParam("BoundaryConditionSlack", boundaryConditionSlack);
+        mapTopic = node->declare_parameter<std::string>("MapTopic", "");
+        targetTopic = node->declare_parameter<std::string>("TargetTopic", "");
+        dilateRadius = node->declare_parameter<double>("DilateRadius", 0.0);
+        voxelWidth = node->declare_parameter<double>("VoxelWidth", 0.0);
+        mapBound = node->declare_parameter<std::vector<double>>("MapBound", {});
+        timeoutRRT = node->declare_parameter<double>("TimeoutRRT", 0.0);
+        percent = node->declare_parameter<double>("Percent", 0.0);
+        maxVelMagL = node->declare_parameter<double>("MaxVelMagL", 0.0);
+        maxVelMagQ = node->declare_parameter<double>("MaxVelMagQ", 0.0);
+        maxAccMagL = node->declare_parameter<double>("MaxAccMagL", 0.0);
+        maxBdrMag = node->declare_parameter<double>("MaxBdrMag", 0.0);
+        maxTiltAngle = node->declare_parameter<double>("MaxTiltAngle", 0.0);
+        maxRPM = node->declare_parameter<double>("MaxRPM", 0.0);
+        minTheta = node->declare_parameter<double>("MinTheta", 0.0);
+        maxTheta = node->declare_parameter<double>("MaxTheta", 0.0);
+        minPsi = node->declare_parameter<double>("MinPsi", 0.0);
+        maxPsi = node->declare_parameter<double>("MaxPsi", 0.0);
+        minT = node->declare_parameter<double>("MinT", 0.0);
+        maxT = node->declare_parameter<double>("MaxT", 0.0);
+        minThrust = node->declare_parameter<double>("MinThrust", 0.0);
+        maxThrust = node->declare_parameter<double>("MaxThrust", 0.0);
+        minDistance = node->declare_parameter<double>("MinDistance", 0.0);
+        cableLength = node->declare_parameter<double>("CableLength", 0.0);
+        massL = node->declare_parameter<double>("MassL", 0.0);
+        massQ = node->declare_parameter<double>("MassQ", 0.0);
+        rotationalInertia = node->declare_parameter<std::vector<double>>("J", {});
+        offsets = node->declare_parameter<std::vector<double>>("Offsets", {});
+        cofs = node->declare_parameter<std::vector<double>>("Cofs", {});
+        gravAcc = node->declare_parameter<double>("GravAcc", 0.0);
+        horizDrag = node->declare_parameter<double>("HorizDrag", 0.0);
+        vertDrag = node->declare_parameter<double>("VertDrag", 0.0);
+        parasDrag = node->declare_parameter<double>("ParasDrag", 0.0);
+        speedEps = node->declare_parameter<double>("SpeedEps", 0.0);
+        weightT = node->declare_parameter<double>("WeightT", 0.0);
+        weightE = node->declare_parameter<double>("WeightE", 0.0);
+        chiVec = node->declare_parameter<std::vector<double>>("ChiVec", {});
+        smoothingEps = node->declare_parameter<double>("SmoothingEps", 0.0);
+        integralIntervs = node->declare_parameter<int>("IntegralIntervs", 0);
+        relCostTol = node->declare_parameter<double>("RelCostTol", 0.0);
+        pieceNum = node->declare_parameter<int>("PieceNum", 0);
+        droneNum = node->declare_parameter<int>("DroneNum", 0);
+        inifinAngT = node->declare_parameter<std::vector<double>>("InifinAngT", {});
+        initLoadPos = node->declare_parameter<std::vector<double>>("InitLoadPos", {});
+        endLoadPos = node->declare_parameter<std::vector<double>>("EndLoadPos", {});
+        posOffset = node->declare_parameter<std::vector<double>>("PosOffset", {});
+        disBetweenWaypoints = node->declare_parameter<double>("DisBetweenWaypoints", 0.0);
+        continuityDescend = node->declare_parameter<std::vector<double>>("ContinuityDescend", {});
+        boundaryConditionSlack = node->declare_parameter<std::vector<double>>("BoundaryConditionSlack", {});
     }
 };
 
@@ -137,9 +138,9 @@ class GlobalPlanner
 private:
     Config config;
 
-    ros::NodeHandle nh;
-    ros::Subscriber targetSub;
-    std::vector<ros::Publisher> odom_pubs;
+    rclcpp::Node::SharedPtr node_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr targetSub;
+    std::vector<rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr> odom_pubs;
 
     bool mapInitialized;
     bool isSuccessOpted = false;
@@ -155,23 +156,23 @@ private:
     double trajStamp;
     double scale;
     GridMap::Ptr grid_map_;
-    std::vector<ros::Publisher> polyTrajPub;
-    std::vector<quadrotor_msgs::PolyTraj> trajMsgs;
+    std::vector<rclcpp::Publisher<quadrotor_msgs::msg::PolyTraj>::SharedPtr> polyTrajPub;
+    std::vector<quadrotor_msgs::msg::PolyTraj> trajMsgs;
 
 public:
     GlobalPlanner(const Config &conf,
-                  ros::NodeHandle &nh_)
+                  const rclcpp::Node::SharedPtr &node)
         : config(conf),
-          nh(nh_),
+          node_(node),
           mapInitialized(false),
-          visualizer(nh)
+          visualizer(node)
     {
         trajMsgs.resize(config.droneNum + 1);
         polyTrajPub.resize(config.droneNum + 1);
-        polyTrajPub[0] = nh.advertise<quadrotor_msgs::PolyTraj>("load_planning/trajLoad", 10);
+        polyTrajPub[0] = node_->create_publisher<quadrotor_msgs::msg::PolyTraj>("load_planning/trajLoad", 10);
         for (int i = 0; i < config.droneNum; i++)
         {
-            polyTrajPub[i + 1] = nh.advertise<quadrotor_msgs::PolyTraj>("drone_" + to_string(i + 1) + "_planning/trajCable", 10);
+            polyTrajPub[i + 1] = node_->create_publisher<quadrotor_msgs::msg::PolyTraj>("drone_" + to_string(i + 1) + "_planning/trajCable", 10);
         }
         const Eigen::Vector3i xyz((config.mapBound[1] - config.mapBound[0]) / config.voxelWidth,
                                   (config.mapBound[3] - config.mapBound[2]) / config.voxelWidth,
@@ -183,10 +184,11 @@ public:
 
         grid_map_.reset(new GridMap);
 
-        grid_map_->initMap();
+        grid_map_->initMap(node_);
 
-        targetSub = nh.subscribe(config.targetTopic, 1, &GlobalPlanner::targetCallBack, this,
-                                 ros::TransportHints().tcpNoDelay());
+        targetSub = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
+            config.targetTopic, 1,
+            std::bind(&GlobalPlanner::targetCallBack, this, std::placeholders::_1));
     }
 
     inline void plan()
@@ -328,7 +330,7 @@ public:
 
                 for (int i = 0; i < config.droneNum + 1; i++)
                 {
-                    polyTrajPub[i].publish(trajMsgs[i]);
+                    polyTrajPub[i]->publish(trajMsgs[i]);
                 }
 
                 if (initTrajs[0].getPieceNum() > 0 && optTrajs[0].getPieceNum() > 0)
@@ -338,13 +340,13 @@ public:
                     // display.displayDetails(visualizer, initTrajs, optTrajs, gcopter.getRPM1(), gcopter.getRPM2(), gcopter.getRPM3(), gcopter.getRPM4(), gcopter.getAcc(), gcopter.getAccQs());
                     // display.displayAllows(visualizer, optTrajs, config.percent);
                     // display.displayBounds(visualizer, optTrajs, config.percent);
-                    trajStamp = ros::Time::now().toSec();
+                    trajStamp = node_->now().seconds();
                 }
             }
         }
     }
 
-    inline void targetCallBack(const geometry_msgs::PoseStamped::ConstPtr &msg)
+    inline void targetCallBack(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
     {
         config.initLoadPos[0] += config.posOffset[0];
         config.initLoadPos[1] += config.posOffset[1];
@@ -391,9 +393,9 @@ public:
             odom_pubs.resize(config.droneNum + 1);
             for (int k = 0; k < config.droneNum + 1; k++)
             {
-                odom_pubs[k] = nh.advertise<nav_msgs::Odometry>("drone_" + to_string(k) + "_odom", 1);
+                odom_pubs[k] = node_->create_publisher<nav_msgs::msg::Odometry>("drone_" + to_string(k) + "_odom", 1);
             }
-            const double delta = ros::Time::now().toSec() - trajStamp;
+            const double delta = node_->now().seconds() - trajStamp;
 
             if (delta > 0.0 && delta < optTrajs[0].getTotalDuration())
             {
@@ -405,7 +407,7 @@ public:
                 Eigen::Vector3d posL, velL, accL, jerL, snpL, posQ, velQ, accQ, jerQ, snpQ;
                 Eigen::VectorXd d2qb, d5qb, d3qb, d4qb;
                 Eigen::Vector2d cst, csp;
-                std::vector<nav_msgs::Odometry> odoms;
+                std::vector<nav_msgs::msg::Odometry> odoms;
                 d2qb.resize(4);
                 d3qb.resize(6);
                 d4qb.resize(6);
@@ -465,7 +467,7 @@ public:
                 }
                 for (int k = 0; k < config.droneNum + 1; k++)
                 {
-                    odom_pubs[k].publish(odoms[k]);
+                    odom_pubs[k]->publish(odoms[k]);
                 }
             }
         }
@@ -489,7 +491,7 @@ public:
 
     }
 
-    void polyTraj2ROSMsg(std::vector<quadrotor_msgs::PolyTraj> &msgs)
+    void polyTraj2ROSMsg(std::vector<quadrotor_msgs::msg::PolyTraj> &msgs)
     {
         for (int k = 0; k < config.droneNum + 1; k++)
         {
@@ -531,16 +533,16 @@ public:
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "global_planning_node");
-    ros::NodeHandle nh_;
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("global_planning_node");
 
-    GlobalPlanner global_planner(Config(ros::NodeHandle("~")), nh_);
+    GlobalPlanner global_planner(Config(node), node);
 
-    ros::Rate lr(1000);
-    while (ros::ok())
+    rclcpp::Rate lr(1000);
+    while (rclcpp::ok())
     {
         global_planner.process();
-        ros::spinOnce();
+        rclcpp::spin_some(node);
         lr.sleep();
     }
 

@@ -1,44 +1,47 @@
-#include <nav_msgs/Odometry.h>
-#include <quadrotor_msgs/PolyTraj.h>
+#include <nav_msgs/msg/odometry.hpp>
+#include <quadrotor_msgs/msg/poly_traj.hpp>
+#include <quadrotor_msgs/msg/position_command.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/empty.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+#include <rclcpp/rclcpp.hpp>
+
 #include <gcopter/trajectory.hpp>
 #include <gcopter/funs.hpp>
-#include <quadrotor_msgs/PositionCommand.h>
-#include <std_msgs/Empty.h>
-#include <std_msgs/Bool.h>
-#include <visualization_msgs/Marker.h>
-#include <ros/ros.h>
 #include <gcopter/flatness.hpp>
 
 using namespace Eigen;
 using namespace gcopter;
 using namespace flatness;
 
-ros::Publisher cmd_pub, stop_cmd_pub;
+rclcpp::Node::SharedPtr node_;
+rclcpp::Publisher<quadrotor_msgs::msg::PositionCommand>::SharedPtr cmd_pub;
+rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_cmd_pub;
 
-quadrotor_msgs::PositionCommand cmd;
-std_msgs::Bool cmdb;
+quadrotor_msgs::msg::PositionCommand cmd;
+std_msgs::msg::Bool cmdb;
 
 bool receive_traj_ = false;
 bool hasTrigger = false;
 boost::shared_ptr<Trajectory<5>> traj_;
 double traj_duration_;
-ros::Time start_time_;
+rclcpp::Time start_time_;
 Eigen::Vector3d last_pos_;
 Eigen::Vector3d pos(Eigen::Vector3d::Zero()), vel(Eigen::Vector3d::Zero()), acc(Eigen::Vector3d::Zero()), jer(Eigen::Vector3d::Zero()), snp(Eigen::Vector3d::Zero());
 
 // yaw control
 Eigen::Vector3d last_yaws_, yaws_;
 
-void polyTrajCallback(quadrotor_msgs::PolyTrajPtr msg)
+void polyTrajCallback(const quadrotor_msgs::msg::PolyTraj::SharedPtr msg)
 {
   if ((int)msg->order != 5)
   {
-    ROS_ERROR("[traj_server] Only support trajectory order equals 5 now!");
+    RCLCPP_ERROR(node_->get_logger(), "[traj_server] Only support trajectory order equals 5 now!");
     return;
   }
   if (msg->duration.size() * ((int)msg->order + 1) != msg->coef_x.size())
   {
-    ROS_ERROR("[traj_server] WRONG trajectory parameters, ");
+    RCLCPP_ERROR(node_->get_logger(), "[traj_server] WRONG trajectory parameters");
     return;
   }
 
@@ -60,23 +63,23 @@ void polyTrajCallback(quadrotor_msgs::PolyTrajPtr msg)
 
   traj_.reset(new Trajectory<5>(dura, cMats));
   traj_duration_ = traj_->getTotalDuration();
-  cout << "uav has receive traj!"<< endl;
+  std::cout << "uav has receive traj!" << std::endl;
   receive_traj_ = true;
 }
 
 Eigen::Vector3d calculate_yaw()
-{ 
+{
   Eigen::Vector3d yaws;
   yaws.setZero();
   return yaws;
 }
 
-void publish_quad_cmd( )
+void publish_quad_cmd()
 {
 
-  cmd.header.stamp = ros::Time::now();
+  cmd.header.stamp = node_->now();
   cmd.header.frame_id = "world";
-  cmd.trajectory_flag = quadrotor_msgs::PositionCommand::TRAJECTORY_STATUS_READY;
+  cmd.trajectory_flag = quadrotor_msgs::msg::PositionCommand::TRAJECTORY_STATUS_READY;
 
   cmd.position.x = pos(0);
   cmd.position.y = pos(1);
@@ -93,38 +96,40 @@ void publish_quad_cmd( )
   cmd.snap.x = snp(0);
   cmd.snap.y = snp(1);
   cmd.snap.z = snp(2);
-  
+
   cmd.yaw = yaws_(0);
   cmd.yaw_dot = yaws_(1);
   cmd.yaw_acc = yaws_(2);
-  cmd_pub.publish(cmd);
+  cmd_pub->publish(cmd);
 
   // last_pos_ = p;
 }
 
 
-void triggerCallback(std_msgs::EmptyPtr msg)
+void triggerCallback(const std_msgs::msg::Empty::SharedPtr msg)
 {
+  (void)msg;
   if ((!receive_traj_))
     return;
 
   hasTrigger = true;
-  ROS_WARN("hasTrigger !");
-  start_time_ = ros::Time::now();
+  RCLCPP_WARN(node_->get_logger(), "hasTrigger !");
+  start_time_ = node_->now();
 }
 
-void cmdCallback(const ros::TimerEvent &e)
+void cmdCallback()
 {
   if (!hasTrigger)
   {
     return;
   }
   // cout << "ABCD"<< endl;
-  ros::Time time_now = ros::Time::now();
+  rclcpp::Time time_now = node_->now();
 
-  double t_cur = (time_now - start_time_).toSec();
+  double t_cur = (time_now - start_time_).seconds();
 
   std::pair<double, double> yaw_yawdot(0, 0);
+  (void)yaw_yawdot;
 
   if (t_cur < traj_duration_ && t_cur >= 0.0)
   {
@@ -133,7 +138,7 @@ void cmdCallback(const ros::TimerEvent &e)
     acc = traj_->getAcc(t_cur);
     jer = traj_->getJer(t_cur);
     snp = traj_->getSnp(t_cur);
-    
+
     /*** calculate yaw ***/
     yaws_ = calculate_yaw();
     last_yaws_ = yaws_;
@@ -145,32 +150,37 @@ void cmdCallback(const ros::TimerEvent &e)
   else if (t_cur > traj_duration_)
   {
     cmdb.data = true;
-    stop_cmd_pub.publish(cmdb);
+    stop_cmd_pub->publish(cmdb);
   }
 
 }
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "traj_server");
-  // ros::NodeHandle node;
-  ros::NodeHandle nh("~");
+  rclcpp::init(argc, argv);
+  node_ = rclcpp::Node::make_shared("traj_server");
 
-  ros::Subscriber poly_traj_load_sub = nh.subscribe("planning/trajectory", 10, polyTrajCallback);
-  ros::Subscriber trigger_sub = nh.subscribe("planning/trigger", 10, triggerCallback);
+  auto poly_traj_load_sub = node_->create_subscription<quadrotor_msgs::msg::PolyTraj>(
+      "planning/trajectory", 10, polyTrajCallback);
+  auto trigger_sub = node_->create_subscription<std_msgs::msg::Empty>(
+      "planning/trigger", 10, triggerCallback);
 
-  cmd_pub = nh.advertise<quadrotor_msgs::PositionCommand>("/pos_cmd", 50);
-  stop_cmd_pub = nh.advertise<std_msgs::Bool>("planning/stop", 50);
+  cmd_pub = node_->create_publisher<quadrotor_msgs::msg::PositionCommand>("/pos_cmd", 50);
+  stop_cmd_pub = node_->create_publisher<std_msgs::msg::Bool>("planning/stop", 50);
 
-  ros::Timer cmd_timer = nh.createTimer(ros::Duration(0.001), cmdCallback);
+  auto cmd_timer = node_->create_wall_timer(std::chrono::milliseconds(1), cmdCallback);
+
+  (void)poly_traj_load_sub;
+  (void)trigger_sub;
+  (void)cmd_timer;
 
   last_yaws_.setZero();
 
-  ros::Duration(1.0).sleep();
+  rclcpp::sleep_for(std::chrono::seconds(1));
 
-  ROS_INFO("[Traj server]: ready.");
+  RCLCPP_INFO(node_->get_logger(), "[Traj server]: ready.");
 
-  ros::spin();
+  rclcpp::spin(node_);
 
   return 0;
 }

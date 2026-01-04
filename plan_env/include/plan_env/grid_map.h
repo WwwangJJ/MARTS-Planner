@@ -4,14 +4,15 @@
 #include <Eigen/Eigen>
 #include <Eigen/StdVector>
 #include <cv_bridge/cv_bridge.h>
-#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
 #include <iostream>
 #include <random>
-#include <nav_msgs/Odometry.h>
+#include <nav_msgs/msg/odometry.hpp>
 #include <queue>
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <tuple>
-#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/msg/marker.hpp>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -152,7 +153,7 @@ public:
   inline bool isKnownFree(const Eigen::Vector3i &id);
   inline bool isKnownOccupied(const Eigen::Vector3i &id);
 
-  void initMap();
+  void initMap(const rclcpp::Node::SharedPtr &node);
 
   void publishMap();
   void publishMapInflate(bool all_info = false);
@@ -191,14 +192,17 @@ private:
   void setOdom();
 
   // update occupancy by raycasting
-  void visCallback(const ros::TimerEvent & /*event*/);
+  void visCallback();
   void updateESDFCallback();
 
   inline void inflatePoint(const Eigen::Vector3i &pt, int step, vector<Eigen::Vector3i> &pts);
-  ros::NodeHandle node_;
-  ros::Subscriber indep_cloud_sub_, indep_odom_sub_;
-  ros::Publisher map_pub_, map_inf_pub_, esdf_pub_;
-  ros::Timer vis_timer_;
+  rclcpp::Node::SharedPtr node_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr indep_cloud_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr indep_odom_sub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_inf_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr esdf_pub_;
+  rclcpp::TimerBase::SharedPtr vis_timer_;
 
   //
   uniform_real_distribution<double> rand_noise_;

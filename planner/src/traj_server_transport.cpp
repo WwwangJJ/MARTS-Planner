@@ -1,22 +1,26 @@
-#include <nav_msgs/Odometry.h>
-#include <quadrotor_msgs/PolyTraj.h>
+#include <algorithm>
+#include <nav_msgs/msg/odometry.hpp>
+#include <quadrotor_msgs/msg/poly_traj.hpp>
+#include <quadrotor_msgs/msg/position_command_new.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/empty.hpp>
+#include <visualization_msgs/msg/marker.hpp>
+#include <rclcpp/rclcpp.hpp>
+
 #include <gcopter/trajectory.hpp>
 #include <gcopter/funs.hpp>
-#include <quadrotor_msgs/PositionCommandNew.h>
-#include <std_msgs/Empty.h>
-#include <std_msgs/Bool.h>
-#include <visualization_msgs/Marker.h>
-#include <ros/ros.h>
 #include <gcopter/flatness.hpp>
 
 using namespace Eigen;
 using namespace gcopter;
 using namespace flatness;
 
-ros::Publisher cmd_pub, stop_cmd_pub;
+rclcpp::Node::SharedPtr node_;
+rclcpp::Publisher<quadrotor_msgs::msg::PositionCommandNew>::SharedPtr cmd_pub;
+rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_cmd_pub;
 
-quadrotor_msgs::PositionCommandNew cmd;
-std_msgs::Bool cmdb;
+quadrotor_msgs::msg::PositionCommandNew cmd;
+std_msgs::msg::Bool cmdb;
 
 bool receive_traj_load_ = false;
 bool receive_traj_cable_ = false;
@@ -27,7 +31,7 @@ boost::shared_ptr<Trajectory<7>> traj_load_;
 boost::shared_ptr<Trajectory<7>> traj_cable_;
 double traj_duration_, transient_time_;
 double len, initHeight, startHeight, initYaw, takeOffVel;
-ros::Time start_time_, start_takeoff_time_;
+rclcpp::Time start_time_, start_takeoff_time_;
 int drone_id_, drone_num_;
 int flag;
 Eigen::Vector3d last_pos_;
@@ -38,21 +42,21 @@ Eigen::Vector3d last_yaws_, yaws_, init_pos;
 std::vector<double> inifinAngT, initLoadPos;
 // double kk = 0.0;
 
-void polyTrajCallback(quadrotor_msgs::PolyTrajPtr msg)
+void polyTrajCallback(const quadrotor_msgs::msg::PolyTraj::SharedPtr msg)
 {
   if (((int)msg->type == 0 && (int)msg->drone_id != 0) || ((int)msg->type == 1 && (int)msg->drone_id != drone_id_))
   {
-    ROS_ERROR("[traj_server] received drone_id != drone_id ");
+    RCLCPP_ERROR(node_->get_logger(), "[traj_server] received drone_id != drone_id ");
     return;
   }
   if ((int)msg->order != 7)
   {
-    ROS_ERROR("[traj_server] Only support trajectory order equals 5 now!");
+    RCLCPP_ERROR(node_->get_logger(), "[traj_server] Only support trajectory order equals 5 now!");
     return;
   }
   if (msg->duration.size() * ((int)msg->order + 1) != msg->coef_x.size())
   {
-    ROS_ERROR("[traj_server] WRONG trajectory parameters, ");
+    RCLCPP_ERROR(node_->get_logger(), "[traj_server] WRONG trajectory parameters");
     return;
   }
 
@@ -76,19 +80,19 @@ void polyTrajCallback(quadrotor_msgs::PolyTrajPtr msg)
   {
     traj_load_.reset(new Trajectory<7>(dura, cMats));
     traj_duration_ = traj_load_->getTotalDuration();
-    cout << "uav" << drone_id_ << "\t have receive load traj!"<< endl;
+    std::cout << "uav" << drone_id_ << "\t have receive load traj!" << std::endl;
     receive_traj_load_ = true;
   }
   else if ((int)msg->type == 1)
   {
     traj_cable_.reset(new Trajectory<7>(dura, cMats));
-    cout << "uav" << drone_id_ << "\t have receive cable traj!"<< endl;
+    std::cout << "uav" << drone_id_ << "\t have receive cable traj!" << std::endl;
     receive_traj_cable_ = true;
   }
 }
 
 Eigen::Vector3d calculate_yaw()
-{ 
+{
   Eigen::Vector3d yaws;
   yaws.setZero();
   return yaws;
@@ -97,9 +101,9 @@ Eigen::Vector3d calculate_yaw()
 void publish_quad_cmd(const int &flag)
 {
 
-  cmd.header.stamp = ros::Time::now();
+  cmd.header.stamp = node_->now();
   cmd.header.frame_id = "world";
-  cmd.trajectory_flag = quadrotor_msgs::PositionCommandNew::TRAJECTORY_STATUS_READY;
+  cmd.trajectory_flag = quadrotor_msgs::msg::PositionCommandNew::TRAJECTORY_STATUS_READY;
   cmd.flag = flag;
   cmd.position.x = posL(0);
   cmd.position.y = posL(1);
@@ -116,85 +120,87 @@ void publish_quad_cmd(const int &flag)
   cmd.snap.x = snpL(0);
   cmd.snap.y = snpL(1);
   cmd.snap.z = snpL(2);
-  cmd.angT.x = angT(0);
-  cmd.angT.y = angT(1);
-  cmd.angT.z = angT(2);
-  cmd.dAngT.x = dAngT(0);
-  cmd.dAngT.y = dAngT(1);
-  cmd.dAngT.z = dAngT(2);
-  cmd.d2AngT.x = d2AngT(0);
-  cmd.d2AngT.y = d2AngT(1);
-  cmd.d2AngT.z = d2AngT(2);
-  cmd.d3AngT.x = d3AngT(0);
-  cmd.d3AngT.y = d3AngT(1);
-  cmd.d3AngT.z = d3AngT(2);
-  cmd.d4AngT.x = d4AngT(0);
-  cmd.d4AngT.y = d4AngT(1);
-  cmd.d4AngT.z = d4AngT(2);
-  
+  cmd.ang_t.x = angT(0);
+  cmd.ang_t.y = angT(1);
+  cmd.ang_t.z = angT(2);
+  cmd.d_ang_t.x = dAngT(0);
+  cmd.d_ang_t.y = dAngT(1);
+  cmd.d_ang_t.z = dAngT(2);
+  cmd.d2_ang_t.x = d2AngT(0);
+  cmd.d2_ang_t.y = d2AngT(1);
+  cmd.d2_ang_t.z = d2AngT(2);
+  cmd.d3_ang_t.x = d3AngT(0);
+  cmd.d3_ang_t.y = d3AngT(1);
+  cmd.d3_ang_t.z = d3AngT(2);
+  cmd.d4_ang_t.x = d4AngT(0);
+  cmd.d4_ang_t.y = d4AngT(1);
+  cmd.d4_ang_t.z = d4AngT(2);
+
   cmd.yaw = yaws_(0);
   cmd.yaw_dot = yaws_(1);
   cmd.yaw_acc = yaws_(2);
-  cmd_pub.publish(cmd);
-   
+  cmd_pub->publish(cmd);
+
   // last_pos_ = p;
 }
 
-void triggerCallback(std_msgs::EmptyPtr msg)
+void triggerCallback(const std_msgs::msg::Empty::SharedPtr msg)
 {
+  (void)msg;
   if ((!receive_traj_load_) || (!receive_traj_cable_))
     return;
 
   hasTriggerFlight = true;
   hasTriggerSwitchControl = false;
   hasTriggerTakeOff = false;
-  ROS_WARN("hasTriggerFlight !");
-  start_time_ = ros::Time::now();
+  RCLCPP_WARN(node_->get_logger(), "hasTriggerFlight !");
+  start_time_ = node_->now();
 }
 
-void triggerSwitchControlCallback(std_msgs::EmptyPtr msg)
+void triggerSwitchControlCallback(const std_msgs::msg::Empty::SharedPtr msg)
 {
+  (void)msg;
   // if ((!receive_traj_load_) || (!receive_traj_cable_))
   //   return;
 
   hasTriggerSwitchControl = true;
   hasTriggerTakeOff = false;
-  ROS_WARN("hasTriggerSwitchControl !");
-  start_time_ = ros::Time::now();
+  RCLCPP_WARN(node_->get_logger(), "hasTriggerSwitchControl !");
+  start_time_ = node_->now();
 }
 
-void triggerTakeOffCallback(std_msgs::EmptyPtr msg)
+void triggerTakeOffCallback(const std_msgs::msg::Empty::SharedPtr msg)
 {
-
+  (void)msg;
   hasTriggerTakeOff = true;
-  ROS_WARN("hasTakeOffTrigger !");
-  start_takeoff_time_ = ros::Time::now();
+  RCLCPP_WARN(node_->get_logger(), "hasTakeOffTrigger !");
+  start_takeoff_time_ = node_->now();
 }
 
-void cmdCallback(const ros::TimerEvent &e)
+void cmdCallback()
 {
   if (!hasTriggerFlight && !hasTriggerTakeOff && !hasTriggerSwitchControl)
   {
     return;
   }
   // cout << "ABCD"<< endl;
-  ros::Time time_now = ros::Time::now();
+  rclcpp::Time time_now = node_->now();
 
   if (hasTriggerTakeOff)
   {
-    double t_cur = (time_now - start_takeoff_time_).toSec();
+    double t_cur = (time_now - start_takeoff_time_).seconds();
     posL.x() = init_pos.x();
     posL.y() = init_pos.y();
     velL.x() = 0.0;
     velL.y() = 0.0;
     if (t_cur <= transient_time_)
-    {  
+    {
       posL.z() = init_pos.z();
       velL.z() = 0.0;
     }
     else if (t_cur <= transient_time_ + (startHeight - init_pos.z()) / takeOffVel)
     {
-      posL.z() = min(init_pos.z() + takeOffVel * (t_cur - transient_time_), startHeight);
+      posL.z() = std::min(init_pos.z() + takeOffVel * (t_cur - transient_time_), startHeight);
       velL.z() = takeOffVel;
     }
     else
@@ -237,8 +243,7 @@ void cmdCallback(const ros::TimerEvent &e)
   }
   else if (hasTriggerFlight)
   {
-    double t_cur = (time_now - start_time_).toSec();
-    std::pair<double, double> yaw_yawdot(0, 0);
+    double t_cur = (time_now - start_time_).seconds();
     if (t_cur < traj_duration_ && t_cur >= 0.0)
     {
       posL = traj_load_->getPos(t_cur);
@@ -247,11 +252,17 @@ void cmdCallback(const ros::TimerEvent &e)
       jerL = traj_load_->getJer(t_cur);
       snpL = traj_load_->getSnp(t_cur);
 
-      angT = traj_cable_->getPos(t_cur);
-      dAngT = traj_cable_->getVel(t_cur);
-      d2AngT = traj_cable_->getAcc(t_cur);
-      d3AngT = traj_cable_->getJer(t_cur);
-      d4AngT = traj_cable_->getSnp(t_cur);
+      posQ = traj_cable_->getPos(t_cur);
+      velQ = traj_cable_->getVel(t_cur);
+      accQ = traj_cable_->getAcc(t_cur);
+      jerQ = traj_cable_->getJer(t_cur);
+      snpQ = traj_cable_->getSnp(t_cur);
+
+      angT = posQ - posL;
+      dAngT = velQ - velL;
+      d2AngT = accQ - accL;
+      d3AngT = jerQ - jerL;
+      d4AngT = snpQ - snpL;
 
       /*** calculate yaw ***/
       yaws_ = calculate_yaw();
@@ -264,83 +275,59 @@ void cmdCallback(const ros::TimerEvent &e)
     }
     else if (t_cur > traj_duration_)
     {
-      // cmdb.data = true;
-      // stop_cmd_pub.publish(cmdb);
-      posL = traj_load_->getPos(traj_duration_);
-      velL = Eigen::Vector3d::Zero();
-      accL = Eigen::Vector3d::Zero();
-      jerL = Eigen::Vector3d::Zero();
-      snpL = Eigen::Vector3d::Zero();
-
-      angT = traj_cable_->getPos(traj_duration_);
-      dAngT = Eigen::Vector3d::Zero();
-      d2AngT = Eigen::Vector3d::Zero();
-      d3AngT = Eigen::Vector3d::Zero();
-      d4AngT = Eigen::Vector3d::Zero();
-
-      /*** calculate yaw ***/
-      yaws_ = calculate_yaw();
-      last_yaws_ = yaws_;
-      // last_pos_ = pos;
-
-      // publish
-      flag = 2;
-      publish_quad_cmd(flag);
+      cmdb.data = true;
+      stop_cmd_pub->publish(cmdb);
     }
-    // cout << "bbbb" << endl;
   }
-
 
 }
 
 int main(int argc, char **argv)
 {
-  ros::init(argc, argv, "traj_server");
-  // ros::NodeHandle node;
-  ros::NodeHandle nh("~");
+  rclcpp::init(argc, argv);
+  node_ = rclcpp::Node::make_shared("traj_server_transport");
 
-  ros::Subscriber poly_traj_load_sub = nh.subscribe("planning/trajectoryLoad", 10, polyTrajCallback);
-  ros::Subscriber poly_traj_cable_sub = nh.subscribe("planning/trajectoryCable", 10, polyTrajCallback);
-  ros::Subscriber trigger_sub = nh.subscribe("planning/triggerFlight", 10, triggerCallback);
-  ros::Subscriber trigger_takeoff_sub = nh.subscribe("planning/triggerTakeOff", 10, triggerTakeOffCallback);
-  ros::Subscriber trigger_switch_control_sub = nh.subscribe("planning/triggerSwitchControl", 10, triggerSwitchControlCallback);
+  drone_id_ = node_->declare_parameter<int>("drone_id", 1);
+  drone_num_ = node_->declare_parameter<int>("drone_num", 1);
+  len = node_->declare_parameter<double>("len", 1.0);
+  initHeight = node_->declare_parameter<double>("init_height", 0.0);
+  startHeight = node_->declare_parameter<double>("start_height", 0.0);
+  initYaw = node_->declare_parameter<double>("init_yaw", 0.0);
+  takeOffVel = node_->declare_parameter<double>("takeoff_vel", 0.0);
+  transient_time_ = node_->declare_parameter<double>("transient_time", 0.0);
+  inifinAngT = node_->declare_parameter<std::vector<double>>("inifinAngT", {});
+  initLoadPos = node_->declare_parameter<std::vector<double>>("initLoadPos", {});
 
-  cmd_pub = nh.advertise<quadrotor_msgs::PositionCommandNew>("/pos_cmd", 50);
-  stop_cmd_pub = nh.advertise<std_msgs::Bool>("planning/stop", 50);
+  cmd_pub = node_->create_publisher<quadrotor_msgs::msg::PositionCommandNew>("/pos_cmd", 50);
+  stop_cmd_pub = node_->create_publisher<std_msgs::msg::Bool>("planning/stop", 50);
 
-  ros::Timer cmd_timer = nh.createTimer(ros::Duration(0.003), cmdCallback);
-  nh.param("traj_server/drone_id", drone_id_, 0);
-  nh.param("CableLength", len, 1.0);
-  nh.param("DroneNum", drone_num_, 3);
-  nh.getParam("InifinAngT", inifinAngT);
-  nh.getParam("InitLoadPos", initLoadPos);
-  nh.getParam("initHeight", initHeight);
-  nh.getParam("initYaw", initYaw);
-  nh.getParam("takeOffVel", takeOffVel);
-  nh.getParam("transientTime", transient_time_);
-  // cout << "111\t" << drone_num_  << "\t" << len << endl;
-  // cout << "222\t" <<  inifinAngT[0] << "\t" << inifinAngT[1] << "\t" << inifinAngT[2] << endl;
+  auto poly_traj_load_sub = node_->create_subscription<quadrotor_msgs::msg::PolyTraj>(
+      "planning/trajectoryLoad", 10, polyTrajCallback);
+  auto poly_traj_cable_sub = node_->create_subscription<quadrotor_msgs::msg::PolyTraj>(
+      "planning/trajectoryCable", 10, polyTrajCallback);
+  auto trigger_sub = node_->create_subscription<std_msgs::msg::Empty>(
+      "planning/triggerFlight", 10, triggerCallback);
+  auto trigger_takeoff_sub = node_->create_subscription<std_msgs::msg::Empty>(
+      "planning/triggerTakeOff", 10, triggerTakeOffCallback);
+  auto trigger_switch_control_sub = node_->create_subscription<std_msgs::msg::Empty>(
+      "planning/triggerSwitchControl", 10, triggerSwitchControlCallback);
 
-  init_pos.x() = initLoadPos[0] + len * sin(inifinAngT[0] * M_PI) * cos(2 * (drone_id_ - 1) * M_PI / drone_num_ + inifinAngT[1] * M_PI);
-  init_pos.y() = initLoadPos[1] + len * sin(inifinAngT[0] * M_PI) * sin(2 * (drone_id_ - 1) * M_PI / drone_num_ + inifinAngT[1] * M_PI);
+  auto cmd_timer = node_->create_wall_timer(std::chrono::milliseconds(3), cmdCallback);
 
-  // init_pos.x() = len * sin(inifinAngT[0] * M_PI) * cos(M_PI);
-  // init_pos.y() = len * sin(inifinAngT[0] * M_PI) * sin(M_PI);
-  // init_pos.x() = 4.615;
-  // init_pos.y() = 0.719;
-  init_pos.z() = initHeight;
-  // cout << init_pos.z() << endl;
-  startHeight = initLoadPos[2] + len * cos(inifinAngT[0] * M_PI);
-  // startHeight = 1.45;
-  // cout << "111\t" << takeOffVel << endl;
-  // cout << "222\t" << takeOffVel << endl;
+  (void)poly_traj_load_sub;
+  (void)poly_traj_cable_sub;
+  (void)trigger_sub;
+  (void)trigger_takeoff_sub;
+  (void)trigger_switch_control_sub;
+  (void)cmd_timer;
+
   last_yaws_.setZero();
 
-  ros::Duration(1.0).sleep();
+  rclcpp::sleep_for(std::chrono::seconds(1));
 
-  ROS_INFO("[Traj server]: ready.");
+  RCLCPP_INFO(node_->get_logger(), "[Traj server]: ready.");
 
-  ros::spin();
+  rclcpp::spin(node_);
 
   return 0;
 }
